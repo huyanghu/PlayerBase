@@ -25,7 +25,6 @@ import com.kk.taurus.avplayer.R;
 import com.kk.taurus.avplayer.play.DataInter;
 import com.kk.taurus.playerbase.event.OnPlayerEventListener;
 import com.kk.taurus.playerbase.receiver.BaseCover;
-import com.kk.taurus.playerbase.receiver.ICover;
 import com.kk.taurus.playerbase.receiver.IReceiverGroup;
 
 /**
@@ -117,6 +116,10 @@ public class CompleteCover extends BaseCover {
     @Override
     public void onPlayerEvent(int eventCode, Bundle bundle) {
         switch (eventCode){
+            case OnPlayerEventListener.PLAYER_EVENT_ON_DATA_SOURCE_SET:
+            case OnPlayerEventListener.PLAYER_EVENT_ON_VIDEO_RENDER_START:
+                setPlayCompleteState(false);
+                break;
             case OnPlayerEventListener.PLAYER_EVENT_ON_PLAY_COMPLETE:
                 setPlayCompleteState(true);
                 break;
@@ -140,6 +143,6 @@ public class CompleteCover extends BaseCover {
 
     @Override
     public int getCoverLevel() {
-        return ICover.COVER_LEVEL_MEDIUM;
+        return levelMedium(20);
     }
 }

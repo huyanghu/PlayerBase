@@ -20,6 +20,7 @@ import com.kk.taurus.avplayer.play.DataInter;
 import com.kk.taurus.avplayer.play.ReceiverGroupManager;
 import com.kk.taurus.avplayer.utils.DataUtils;
 import com.kk.taurus.playerbase.event.OnPlayerEventListener;
+import com.kk.taurus.playerbase.player.IPlayer;
 import com.kk.taurus.playerbase.receiver.OnReceiverEventListener;
 import com.kk.taurus.playerbase.receiver.ReceiverGroup;
 
@@ -112,14 +113,18 @@ public class OnlineVideoListActivity extends AppCompatActivity implements
     protected void onResume() {
         super.onResume();
         toDetail = false;
+        mReceiverGroup.removeReceiver(DataInter.ReceiverKey.KEY_GESTURE_COVER);
+        mReceiverGroup.getGroupValue().putBoolean(DataInter.Key.KEY_CONTROLLER_TOP_ENABLE, false);
         AssistPlayer.get().setReceiverGroup(mReceiverGroup);
         if(isLandScape){
             attachFullScreen();
         }else{
             attachList();
         }
-        AssistPlayer.get().resume();
-        mReceiverGroup.getGroupValue().putBoolean(DataInter.Key.KEY_CONTROLLER_TOP_ENABLE, false);
+        int state = AssistPlayer.get().getState();
+        if(state!= IPlayer.STATE_PLAYBACK_COMPLETE){
+            AssistPlayer.get().resume();
+        }
     }
 
     @Override
@@ -162,6 +167,10 @@ public class OnlineVideoListActivity extends AppCompatActivity implements
 
     @Override
     public void onPlayerEvent(int eventCode, Bundle bundle) {
-
+        switch (eventCode){
+            case OnPlayerEventListener.PLAYER_EVENT_ON_PLAY_COMPLETE:
+                AssistPlayer.get().stop();
+                break;
+        }
     }
 }

@@ -28,10 +28,13 @@ import com.kk.taurus.playerbase.event.EventKey;
 import com.kk.taurus.playerbase.event.OnErrorEventListener;
 import com.kk.taurus.playerbase.event.OnPlayerEventListener;
 import com.kk.taurus.playerbase.extension.NetworkEventProducer;
+import com.kk.taurus.playerbase.log.PLog;
 import com.kk.taurus.playerbase.player.IPlayer;
 import com.kk.taurus.playerbase.provider.IDataProvider;
+import com.kk.taurus.playerbase.receiver.IReceiverGroup;
 import com.kk.taurus.playerbase.receiver.OnReceiverEventListener;
-import com.kk.taurus.playerbase.receiver.ReceiverGroup;
+import com.kk.taurus.playerbase.receiver.PlayerStateGetter;
+import com.kk.taurus.playerbase.receiver.StateGetter;
 import com.kk.taurus.playerbase.render.IRender;
 import com.kk.taurus.playerbase.render.RenderSurfaceView;
 import com.kk.taurus.playerbase.render.RenderTextureView;
@@ -49,6 +52,8 @@ import com.kk.taurus.playerbase.widget.SuperContainer;
  */
 public final class RelationAssist implements AssistPlay {
 
+    private final String TAG = "RelationAssist";
+
     private Context mContext;
 
     private AVPlayer mPlayer;
@@ -61,17 +66,22 @@ public final class RelationAssist implements AssistPlay {
     /**
      * ReceiverGroup from out setting.
      */
-    private ReceiverGroup mReceiverGroup;
+    private IReceiverGroup mReceiverGroup;
 
-    private int mRenderType;
+    private int mRenderType = IRender.RENDER_TYPE_TEXTURE_VIEW;
+    private boolean mRenderTypeChange;
     private IRender mRender;
+    private int mVideoWidth;
+    private int mVideoHeight;
+    private int mVideoSarNum;
+    private int mVideoSarDen;
+    private int mVideoRotation;
+
     private IRender.IRenderHolder mRenderHolder;
 
     private DataSource mDataSource;
 
-    private int mVideoRotation;
-    private int mVideoWidth,mVideoHeight;
-    private int mVideoSarNum,mVideoSarDen;
+    private boolean isBuffering;
 
     private OnPlayerEventListener mOnPlayerEventListener;
     private OnErrorEventListener mOnErrorEventListener;
@@ -92,6 +102,7 @@ public final class RelationAssist implements AssistPlay {
         if(PlayerConfig.isUseDefaultNetworkEventProducer())
             superContainer.addEventProducer(new NetworkEventProducer(context));
         mSuperContainer = superContainer;
+        mSuperContainer.setStateGetter(mInternalStateGetter);
     }
 
     public SuperContainer getSuperContainer() {
@@ -110,33 +121,92 @@ public final class RelationAssist implements AssistPlay {
         mSuperContainer.setOnReceiverEventListener(null);
     }
 
+    //Internal StateGetter for SuperContainer
+    private StateGetter mInternalStateGetter = new StateGetter() {
+        @Override
+        public PlayerStateGetter getPlayerStateGetter() {
+            return mInternalPlayerStateGetter;
+        }
+    };
+
+    //Internal PlayerStateGetter for StateGetter
+    private PlayerStateGetter mInternalPlayerStateGetter =
+            new PlayerStateGetter() {
+        @Override
+        public int getState() {
+            return mPlayer.getState();
+        }
+
+        @Override
+        public int getCurrentPosition() {
+            return mPlayer.getCurrentPosition();
+        }
+
+        @Override
+        public int getDuration() {
+            return mPlayer.getDuration();
+        }
+
+        @Override
+        public int getBufferPercentage() {
+            return mPlayer.getBufferPercentage();
+        }
+
+        @Override
+        public boolean isBuffering() {
+            return isBuffering;
+        }
+    };
+
     private OnPlayerEventListener mInternalPlayerEventListener =
             new OnPlayerEventListener() {
         @Override
         public void onPlayerEvent(int eventCode, Bundle bundle) {
             onInternalHandlePlayerEvent(eventCode, bundle);
-            mSuperContainer.dispatchPlayEvent(eventCode, bundle);
             if(mOnPlayerEventListener!=null)
                 mOnPlayerEventListener.onPlayerEvent(eventCode, bundle);
+            mSuperContainer.dispatchPlayEvent(eventCode, bundle);
         }
     };
 
     private void onInternalHandlePlayerEvent(int eventCode, Bundle bundle) {
-        if(eventCode== OnPlayerEventListener.PLAYER_EVENT_ON_VIDEO_SIZE_CHANGE){
-            mVideoWidth = bundle.getInt(EventKey.INT_ARG1);
-            mVideoHeight = bundle.getInt(EventKey.INT_ARG2);
-            mVideoSarNum = bundle.getInt(EventKey.INT_ARG3);
-            mVideoSarDen = bundle.getInt(EventKey.INT_ARG4);
-            if(mRender!=null){
-                mRender.updateVideoSize(mVideoWidth, mVideoHeight);
-                mRender.setVideoSampleAspectRatio(mVideoSarNum, mVideoSarDen);
-            }
-        }else if(eventCode== OnPlayerEventListener.PLAYER_EVENT_ON_VIDEO_ROTATION_CHANGED){
-            mVideoRotation = bundle.getInt(EventKey.INT_DATA);
-            if(mRender!=null)
-                mRender.setVideoRotation(mVideoRotation);
-        }else if(eventCode== OnPlayerEventListener.PLAYER_EVENT_ON_PREPARED){
-            bindRenderHolder(mRenderHolder);
+        switch (eventCode){
+            //when get video size , need update render for measure.
+            case OnPlayerEventListener.PLAYER_EVENT_ON_VIDEO_SIZE_CHANGE:
+                if(bundle!=null){
+                    mVideoWidth = bundle.getInt(EventKey.INT_ARG1);
+                    mVideoHeight = bundle.getInt(EventKey.INT_ARG2);
+                    mVideoSarNum = bundle.getInt(EventKey.INT_ARG3);
+                    mVideoSarDen = bundle.getInt(EventKey.INT_ARG4);
+                    if(mRender!=null){
+                        mRender.updateVideoSize(mVideoWidth, mVideoHeight);
+                        mRender.setVideoSampleAspectRatio(mVideoSarNum, mVideoSarDen);
+                    }
+                }
+                break;
+            //when get video rotation, need update render rotation.
+            case OnPlayerEventListener.PLAYER_EVENT_ON_VIDEO_ROTATION_CHANGED:
+                if(bundle!=null){
+                    mVideoRotation = bundle.getInt(EventKey.INT_DATA);
+                    if(mRender!=null)
+                        mRender.setVideoRotation(mVideoRotation);
+                }
+                break;
+            //when prepared bind surface.
+            case OnPlayerEventListener.PLAYER_EVENT_ON_PREPARED:
+                if(bundle!=null && mRender!=null){
+                    mVideoWidth = bundle.getInt(EventKey.INT_ARG1);
+                    mVideoHeight = bundle.getInt(EventKey.INT_ARG2);
+                    mRender.updateVideoSize(mVideoWidth, mVideoHeight);
+                }
+                bindRenderHolder(mRenderHolder);
+                break;
+            case OnPlayerEventListener.PLAYER_EVENT_ON_BUFFERING_START:
+                isBuffering = true;
+                break;
+            case OnPlayerEventListener.PLAYER_EVENT_ON_BUFFERING_END:
+                isBuffering = false;
+                break;
         }
     }
 
@@ -145,9 +215,9 @@ public final class RelationAssist implements AssistPlay {
         @Override
         public void onErrorEvent(int eventCode, Bundle bundle) {
             onInternalHandleErrorEvent(eventCode, bundle);
-            mSuperContainer.dispatchErrorEvent(eventCode, bundle);
             if(mOnErrorEventListener!=null)
                 mOnErrorEventListener.onErrorEvent(eventCode, bundle);
+            mSuperContainer.dispatchErrorEvent(eventCode, bundle);
         }
     };
 
@@ -163,6 +233,11 @@ public final class RelationAssist implements AssistPlay {
             new OnReceiverEventListener() {
         @Override
         public void onReceiverEvent(int eventCode, Bundle bundle) {
+            if(eventCode == InterEvent.CODE_REQUEST_NOTIFY_TIMER){
+                mPlayer.setUseTimerProxy(true);
+            }else if(eventCode == InterEvent.CODE_REQUEST_STOP_TIMER){
+                mPlayer.setUseTimerProxy(false);
+            }
             //if setting AssistEventHandler, call back it to handle.
             if(mOnEventAssistHandler !=null)
                 mOnEventAssistHandler.onAssistHandle(RelationAssist.this, eventCode, bundle);
@@ -198,7 +273,11 @@ public final class RelationAssist implements AssistPlay {
 
     @Override
     public boolean switchDecoder(int decoderPlanId) {
-        return mPlayer.switchDecoder(decoderPlanId);
+        boolean switchDecoder = mPlayer.switchDecoder(decoderPlanId);
+        if(switchDecoder){
+            releaseRender();
+        }
+        return switchDecoder;
     }
 
     /**
@@ -211,11 +290,11 @@ public final class RelationAssist implements AssistPlay {
     }
 
     @Override
-    public void setReceiverGroup(ReceiverGroup receiverGroup) {
+    public void setReceiverGroup(IReceiverGroup receiverGroup) {
         this.mReceiverGroup = receiverGroup;
     }
 
-    public ReceiverGroup getReceiverGroup() {
+    public IReceiverGroup getReceiverGroup() {
         return mReceiverGroup;
     }
 
@@ -229,7 +308,13 @@ public final class RelationAssist implements AssistPlay {
      * @param renderType
      */
     public void setRenderType(int renderType){
+        mRenderTypeChange = mRenderType!=renderType;
         this.mRenderType = renderType;
+        updateRender();
+    }
+
+    public IRender getRender() {
+        return mRender;
     }
 
     @Override
@@ -248,30 +333,55 @@ public final class RelationAssist implements AssistPlay {
      */
     @Override
     public void attachContainer(ViewGroup userContainer) {
-        mPlayer.setSurface(null);
+        attachContainer(userContainer, false);
+    }
+
+    public void attachContainer(ViewGroup userContainer, boolean updateRender){
         attachPlayerListener();
         detachSuperContainer();
         if(mReceiverGroup!=null){
             mSuperContainer.setReceiverGroup(mReceiverGroup);
         }
-        releaseRender();
-        switch (mRenderType){
-            case IRender.RENDER_TYPE_SURFACE_VIEW:
-                mRender = new RenderSurfaceView(mContext);
-                break;
-            case IRender.RENDER_TYPE_TEXTURE_VIEW:
-            default:
-                mRender = new RenderTextureView(mContext);
-                ((RenderTextureView)mRender).setTakeOverSurfaceTexture(true);
-                break;
+        if(updateRender || isNeedForceUpdateRender()){
+            releaseRender();
+            //update render view.
+            updateRender();
         }
-        mRender.setRenderCallback(mRenderCallback);
-        updateRenderParams();
-        mSuperContainer.setRenderView(mRender.getRenderView());
+        //attach SuperContainer
         if(userContainer!=null){
             userContainer.addView(mSuperContainer,
                     new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                             ViewGroup.LayoutParams.MATCH_PARENT));
+        }
+    }
+
+    private boolean isNeedForceUpdateRender(){
+        return mRender==null || mRenderTypeChange;
+    }
+
+    private void updateRender(){
+        if(isNeedForceUpdateRender()){
+            mRenderTypeChange = false;
+            releaseRender();
+            switch (mRenderType){
+                case IRender.RENDER_TYPE_SURFACE_VIEW:
+                    mRender = new RenderSurfaceView(mContext);
+                    break;
+                case IRender.RENDER_TYPE_TEXTURE_VIEW:
+                default:
+                    mRender = new RenderTextureView(mContext);
+                    ((RenderTextureView)mRender).setTakeOverSurfaceTexture(true);
+                    break;
+            }
+            mRenderHolder = null;
+            mPlayer.setSurface(null);
+            mRender.setRenderCallback(mRenderCallback);
+            //update some params for render type change
+            mRender.updateVideoSize(mVideoWidth, mVideoHeight);
+            mRender.setVideoSampleAspectRatio(mVideoSarNum, mVideoSarDen);
+            //update video rotation
+            mRender.setVideoRotation(mVideoRotation);
+            mSuperContainer.setRenderView(mRender.getRenderView());
         }
     }
 
@@ -282,6 +392,15 @@ public final class RelationAssist implements AssistPlay {
 
     @Override
     public void play() {
+        play(false);
+    }
+
+    @Override
+    public void play(boolean updateRender) {
+        if(updateRender){
+            releaseRender();
+            updateRender();
+        }
         if(mDataSource!=null){
             onInternalSetDataSource(mDataSource);
             onInternalStart(mDataSource.getStartPos());
@@ -293,16 +412,20 @@ public final class RelationAssist implements AssistPlay {
         @Override
         public void onSurfaceCreated(IRender.IRenderHolder renderHolder,
                                      int width, int height) {
+            PLog.d(TAG,"onSurfaceCreated : width = " + width + ", height = " + height);
+            //on surface create ,try to attach player.
             mRenderHolder = renderHolder;
             bindRenderHolder(mRenderHolder);
         }
         @Override
         public void onSurfaceChanged(IRender.IRenderHolder renderHolder,
                                      int format, int width, int height) {
-
+            //not handle some...
         }
         @Override
         public void onSurfaceDestroy(IRender.IRenderHolder renderHolder) {
+            PLog.d(TAG,"onSurfaceDestroy...");
+            //on surface destroy detach player
             mRenderHolder = null;
         }
     };
@@ -312,19 +435,12 @@ public final class RelationAssist implements AssistPlay {
             renderHolder.bindPlayer(mPlayer);
     }
 
-    private void updateRenderParams(){
-        if(mRender!=null){
-            //if render change ,need update some params
-            mRender.updateVideoSize(mVideoWidth, mVideoHeight);
-            mRender.setVideoSampleAspectRatio(mVideoSarNum, mVideoSarDen);
-            mRender.setVideoRotation(mVideoRotation);
-        }
-    }
-
     private void releaseRender(){
-        mRenderHolder = null;
-        if(mRender!=null)
+        if(mRender!=null){
+            mRender.setRenderCallback(null);
             mRender.release();
+        }
+        mRender = null;
     }
 
     private void detachSuperContainer(){
@@ -372,6 +488,25 @@ public final class RelationAssist implements AssistPlay {
         return mPlayer.getAudioSessionId();
     }
 
+    //stream buffer percent
+    //min 0, and max 100.
+    @Override
+    public int getBufferPercentage() {
+        return mPlayer.getBufferPercentage();
+    }
+
+    /**
+     * See also
+     * {@link IPlayer#STATE_END}
+     * {@link IPlayer#STATE_ERROR}
+     * {@link IPlayer#STATE_IDLE}
+     * {@link IPlayer#STATE_INITIALIZED}
+     * {@link IPlayer#STATE_PREPARED}
+     * {@link IPlayer#STATE_STARTED}
+     * {@link IPlayer#STATE_PAUSED}
+     * {@link IPlayer#STATE_STOPPED}
+     * {@link IPlayer#STATE_PLAYBACK_COMPLETE}
+     */
     @Override
     public int getState() {
         return mPlayer.getState();

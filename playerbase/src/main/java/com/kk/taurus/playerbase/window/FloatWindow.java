@@ -17,9 +17,12 @@
 package com.kk.taurus.playerbase.window;
 
 import android.animation.Animator;
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.Color;
 import android.graphics.Rect;
+import android.os.Build;
+import android.support.annotation.RequiresApi;
 import android.support.v4.view.ViewCompat;
 import android.view.MotionEvent;
 import android.view.View;
@@ -34,6 +37,7 @@ import com.kk.taurus.playerbase.style.StyleSetter;
  * see also IWindow{@link IWindow}
  *
  */
+@SuppressLint("ViewConstructor")
 public class FloatWindow extends FrameLayout implements IWindow, IStyleSetter{
 
     private IStyleSetter mStyleSetter;
@@ -73,26 +77,31 @@ public class FloatWindow extends FrameLayout implements IWindow, IStyleSetter{
     }
 
     @Override
+    @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
     public void setRoundRectShape(float radius) {
         mStyleSetter.setRoundRectShape(radius);
     }
 
     @Override
+    @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
     public void setRoundRectShape(Rect rect, float radius) {
         mStyleSetter.setRoundRectShape(rect, radius);
     }
 
     @Override
+    @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
     public void setOvalRectShape() {
         mStyleSetter.setOvalRectShape();
     }
 
     @Override
+    @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
     public void setOvalRectShape(Rect rect) {
         mStyleSetter.setOvalRectShape(rect);
     }
 
     @Override
+    @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
     public void clearShapeStyle() {
         mStyleSetter.clearShapeStyle();
     }
@@ -161,9 +170,11 @@ public class FloatWindow extends FrameLayout implements IWindow, IStyleSetter{
         mWindowHelper.close(items);
     }
 
-    private void resetStyle() {
+    public void resetStyle() {
         setElevationShadow(0);
-        clearShapeStyle();
+        if(Build.VERSION.SDK_INT>=Build.VERSION_CODES.LOLLIPOP){
+            clearShapeStyle();
+        }
     }
 
     @Override

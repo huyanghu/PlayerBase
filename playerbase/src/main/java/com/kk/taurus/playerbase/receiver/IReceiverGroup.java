@@ -16,6 +16,8 @@
 
 package com.kk.taurus.playerbase.receiver;
 
+import java.util.Comparator;
+
 /**
  * Created by Taurus on 2018/4/14.
  *
@@ -25,7 +27,17 @@ package com.kk.taurus.playerbase.receiver;
 
 public interface IReceiverGroup {
 
-    void setOnReceiverGroupChangeListener(OnReceiverGroupChangeListener onReceiverGroupChangeListener);
+    /**
+     * add a onReceiverGroupChangeListener listen Receiver item change.
+     * @param onReceiverGroupChangeListener
+     */
+    void addOnReceiverGroupChangeListener(OnReceiverGroupChangeListener onReceiverGroupChangeListener);
+
+    /**
+     * When you don't need onReceiverGroupChangeListener to remove it
+     * @param onReceiverGroupChangeListener
+     */
+    void removeOnReceiverGroupChangeListener(OnReceiverGroupChangeListener onReceiverGroupChangeListener);
 
     /**
      * add a receiver, you need put a unique key for this receiver.
@@ -39,6 +51,12 @@ public interface IReceiverGroup {
      * @param key
      */
     void removeReceiver(String key);
+
+    /**
+     * sort group data
+     * @param comparator
+     */
+    void sort(Comparator<IReceiver> comparator);
 
     /**
      * loop all receivers

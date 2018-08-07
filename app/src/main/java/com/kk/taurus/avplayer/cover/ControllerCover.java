@@ -21,9 +21,9 @@ import com.kk.taurus.playerbase.entity.DataSource;
 import com.kk.taurus.playerbase.event.BundlePool;
 import com.kk.taurus.playerbase.event.EventKey;
 import com.kk.taurus.playerbase.event.OnPlayerEventListener;
+import com.kk.taurus.playerbase.log.PLog;
 import com.kk.taurus.playerbase.player.IPlayer;
 import com.kk.taurus.playerbase.player.OnTimerUpdateListener;
-import com.kk.taurus.playerbase.receiver.ICover;
 import com.kk.taurus.playerbase.receiver.IReceiverGroup;
 import com.kk.taurus.playerbase.touch.OnTouchGestureListener;
 import com.kk.taurus.playerbase.receiver.BaseCover;
@@ -73,6 +73,7 @@ public class ControllerCover extends BaseCover implements OnTimerUpdateListener,
             super.handleMessage(msg);
             switch (msg.what){
                 case MSG_CODE_DELAY_HIDDEN_CONTROLLER:
+                    PLog.d(getTag().toString(), "msg_delay_hidden...");
                     setControllerState(false);
                     break;
             }
@@ -120,6 +121,14 @@ public class ControllerCover extends BaseCover implements OnTimerUpdateListener,
     }
 
     @Override
+    protected void onCoverDetachedToWindow() {
+        super.onCoverDetachedToWindow();
+        mTopContainer.setVisibility(View.GONE);
+        mBottomContainer.setVisibility(View.GONE);
+        removeDelayHiddenMessage();
+    }
+
+    @Override
     public void onReceiverUnBind() {
         super.onReceiverUnBind();
 
@@ -131,6 +140,7 @@ public class ControllerCover extends BaseCover implements OnTimerUpdateListener,
         mHandler.removeCallbacks(mSeekEventRunnable);
 
         unbinder.unbind();
+
     }
 
     @OnClick({
@@ -271,7 +281,7 @@ public class ControllerCover extends BaseCover implements OnTimerUpdateListener,
             mTopContainer.clearAnimation();
             cancelTopAnimation();
             mTopAnimator = ObjectAnimator.ofFloat(mTopContainer,
-                            "alpha", state ? 0 : 1, state ? 1 : 0).setDuration(500);
+                            "alpha", state ? 0 : 1, state ? 1 : 0).setDuration(300);
             mTopAnimator.addListener(new AnimatorListenerAdapter() {
                 @Override
                 public void onAnimationStart(Animator animation) {
@@ -306,7 +316,7 @@ public class ControllerCover extends BaseCover implements OnTimerUpdateListener,
         mBottomContainer.clearAnimation();
         cancelBottomAnimation();
         mBottomAnimator = ObjectAnimator.ofFloat(mBottomContainer,
-                "alpha", state ? 0 : 1, state ? 1 : 0).setDuration(500);
+                "alpha", state ? 0 : 1, state ? 1 : 0).setDuration(300);
         mBottomAnimator.addListener(new AnimatorListenerAdapter() {
             @Override
             public void onAnimationStart(Animator animation) {
@@ -324,16 +334,23 @@ public class ControllerCover extends BaseCover implements OnTimerUpdateListener,
             }
         });
         mBottomAnimator.start();
+        if(state){
+            PLog.d(getTag().toString(), "requestNotifyTimer...");
+            requestNotifyTimer();
+        }else{
+            PLog.d(getTag().toString(), "requestStopTimer...");
+            requestStopTimer();
+        }
     }
 
     private void setControllerState(boolean state){
-        setTopContainerState(state);
-        setBottomContainerState(state);
         if(state){
             sendDelayHiddenMessage();
         }else{
             removeDelayHiddenMessage();
         }
+        setTopContainerState(state);
+        setBottomContainerState(state);
     }
 
     private boolean isControllerShow(){
@@ -377,12 +394,13 @@ public class ControllerCover extends BaseCover implements OnTimerUpdateListener,
     }
 
     @Override
-    public void onTimerUpdate(int curr, int duration) {
+    public void onTimerUpdate(int curr, int duration, int bufferPercentage) {
         if(!mTimerUpdateProgressEnable)
             return;
         if(mTimeFormat==null){
             mTimeFormat = TimeUtil.getFormat(duration);
         }
+        mBufferPercentage = bufferPercentage;
         updateUI(curr, duration);
     }
 
@@ -409,11 +427,6 @@ public class ControllerCover extends BaseCover implements OnTimerUpdateListener,
                     mStateIcon.setSelected(true);
                 }else if(status==IPlayer.STATE_STARTED){
                     mStateIcon.setSelected(false);
-                }
-                break;
-            case OnPlayerEventListener.PLAYER_EVENT_ON_BUFFERING_UPDATE:
-                if(bundle!=null){
-                    mBufferPercentage = bundle.getInt(EventKey.INT_DATA);
                 }
                 break;
             case OnPlayerEventListener.PLAYER_EVENT_ON_VIDEO_RENDER_START:
@@ -454,7 +467,7 @@ public class ControllerCover extends BaseCover implements OnTimerUpdateListener,
 
     @Override
     public int getCoverLevel() {
-        return ICover.COVER_LEVEL_LOW;
+        return levelLow(1);
     }
 
     @Override

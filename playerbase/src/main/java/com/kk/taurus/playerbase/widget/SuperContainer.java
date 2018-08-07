@@ -32,8 +32,8 @@ import com.kk.taurus.playerbase.extension.DelegateReceiverEventSender;
 import com.kk.taurus.playerbase.extension.ProducerGroup;
 import com.kk.taurus.playerbase.extension.ProducerEventSender;
 import com.kk.taurus.playerbase.log.PLog;
-import com.kk.taurus.playerbase.receiver.BaseReceiver;
-import com.kk.taurus.playerbase.receiver.StateGetterImpl;
+import com.kk.taurus.playerbase.receiver.CoverComparator;
+import com.kk.taurus.playerbase.receiver.StateGetter;
 import com.kk.taurus.playerbase.touch.OnTouchGestureListener;
 import com.kk.taurus.playerbase.receiver.BaseCover;
 import com.kk.taurus.playerbase.receiver.DefaultLevelCoverContainer;
@@ -42,7 +42,6 @@ import com.kk.taurus.playerbase.receiver.IReceiver;
 import com.kk.taurus.playerbase.receiver.IReceiverGroup;
 import com.kk.taurus.playerbase.receiver.OnReceiverEventListener;
 import com.kk.taurus.playerbase.event.EventDispatcher;
-import com.kk.taurus.playerbase.receiver.ReceiverGroup;
 import com.kk.taurus.playerbase.touch.BaseGestureCallbackHandler;
 import com.kk.taurus.playerbase.touch.ContainerTouchHelper;
 
@@ -66,7 +65,7 @@ public class SuperContainer extends FrameLayout implements OnTouchGestureListene
 
     private IProducerGroup mProducerGroup;
 
-    private StateGetterImpl mStateGetter;
+    private StateGetter mStateGetter;
 
     public SuperContainer(@NonNull Context context) {
         super(context);
@@ -81,7 +80,6 @@ public class SuperContainer extends FrameLayout implements OnTouchGestureListene
     }
 
     private void initBaseInfo(Context context) {
-        mStateGetter = new StateGetterImpl();
         mProducerGroup = new ProducerGroup(new ProducerEventSender(mDelegateReceiverEventSender));
     }
 
@@ -135,14 +133,13 @@ public class SuperContainer extends FrameLayout implements OnTouchGestureListene
         mRenderContainer.addView(view,lp);
     }
 
-    public final void dispatchPlayEvent(int eventCode, Bundle bundle){
-        handleStateGetter(eventCode, bundle);
-        if(mEventDispatcher !=null)
-            mEventDispatcher.dispatchPlayEvent(eventCode, bundle);
+    public final void setStateGetter(StateGetter stateGetter){
+        mStateGetter = stateGetter;
     }
 
-    private void handleStateGetter(int eventCode, Bundle bundle) {
-        mStateGetter.proxyPlayerEvent(eventCode, bundle);
+    public final void dispatchPlayEvent(int eventCode, Bundle bundle){
+        if(mEventDispatcher !=null)
+            mEventDispatcher.dispatchPlayEvent(eventCode, bundle);
     }
 
     public final void dispatchErrorEvent(int eventCode, Bundle bundle){
@@ -179,47 +176,59 @@ public class SuperContainer extends FrameLayout implements OnTouchGestureListene
         public void sendEvent(int eventCode, Bundle bundle,
                               IReceiverGroup.OnReceiverFilter receiverFilter) {
             if(mEventDispatcher!=null)
-                mEventDispatcher.dispatchReceiverEvent(eventCode, bundle, receiverFilter);
+                mEventDispatcher.dispatchProducerEvent(eventCode, bundle, receiverFilter);
         }
         @Override
-        public void sendObject(String key, Object value) {
-            if(mReceiverGroup!=null)
-                mReceiverGroup.getGroupValue().putObject(key, value);
+        public void sendObject(String key, Object value, IReceiverGroup.OnReceiverFilter receiverFilter) {
+            if(mEventDispatcher!=null)
+                mEventDispatcher.dispatchProducerData(key, value, receiverFilter);
         }
     };
 
-    public final void setReceiverGroup(ReceiverGroup receiverGroup){
+    public final void setReceiverGroup(IReceiverGroup receiverGroup){
         if(receiverGroup==null
                 || receiverGroup.equals(mReceiverGroup))
             return;
         //remove all old covers from root container.
         removeAllCovers();
 
+        //clear listener
+        if(mReceiverGroup!=null){
+            mReceiverGroup.removeOnReceiverGroupChangeListener(mInternalReceiverGroupChangeListener);
+        }
+
         this.mReceiverGroup = receiverGroup;
         //init event dispatcher.
         mEventDispatcher = new EventDispatcher(receiverGroup);
 
+        //sort it by CoverLevel
+        mReceiverGroup.sort(new CoverComparator());
+
         //loop attach receivers
-        receiverGroup.forEach(new IReceiverGroup.OnLoopListener() {
+        mReceiverGroup.forEach(new IReceiverGroup.OnLoopListener() {
             @Override
             public void onEach(IReceiver receiver) {
                 attachReceiver(receiver);
             }
         });
-        //set a receiver group change listener, dynamic attach a receiver
+        //add a receiver group change listener, dynamic attach a receiver
         // when user add it or detach a receiver when user remove it.
-        receiverGroup.setOnReceiverGroupChangeListener(
-                new IReceiverGroup.OnReceiverGroupChangeListener() {
-            @Override
-            public void onReceiverAdd(String key, IReceiver receiver) {
-                attachReceiver(receiver);
-            }
-            @Override
-            public void onReceiverRemove(String key, IReceiver receiver) {
-                detachReceiver(receiver);
-            }
-        });
+        mReceiverGroup.addOnReceiverGroupChangeListener(mInternalReceiverGroupChangeListener);
     }
+
+    //dynamic attach a receiver when user add it
+    //detach a receiver when user remove it.
+    private IReceiverGroup.OnReceiverGroupChangeListener mInternalReceiverGroupChangeListener =
+            new IReceiverGroup.OnReceiverGroupChangeListener() {
+        @Override
+        public void onReceiverAdd(String key, IReceiver receiver) {
+            attachReceiver(receiver);
+        }
+        @Override
+        public void onReceiverRemove(String key, IReceiver receiver) {
+            detachReceiver(receiver);
+        }
+    };
 
     //attach receiver, bind receiver event listener
     // and add cover container if it is a cover instance.
@@ -227,24 +236,26 @@ public class SuperContainer extends FrameLayout implements OnTouchGestureListene
         //bind the ReceiverEventListener for receivers connect.
         receiver.bindReceiverEventListener(mInternalReceiverEventListener);
         receiver.bindStateGetter(mStateGetter);
-        PLog.d(TAG, "ReceiverEventListener bind : " + ((BaseReceiver)receiver).getTag());
         if(receiver instanceof BaseCover){
+            BaseCover cover = (BaseCover) receiver;
             //add cover view to cover strategy container.
-            mCoverStrategy.addCover((BaseCover) receiver);
+            mCoverStrategy.addCover(cover);
+            PLog.d(TAG, "on cover attach : " + cover.getTag() + " ," + cover.getCoverLevel());
         }
     }
 
     //detach receiver, unbind receiver event listener
     // and remove cover container if it is a cover instance.
     private void detachReceiver(IReceiver receiver){
+        if(receiver instanceof BaseCover){
+            BaseCover cover = (BaseCover) receiver;
+            //remove cover view to cover strategy container.
+            mCoverStrategy.removeCover(cover);
+            PLog.w(TAG, "on cover detach : " + cover.getTag() + " ," + cover.getCoverLevel());
+        }
         //unbind the ReceiverEventListener for receivers connect.
         receiver.bindReceiverEventListener(null);
         receiver.bindStateGetter(null);
-        PLog.w(TAG, "ReceiverEventListener unbind : " + ((BaseReceiver)receiver).getTag());
-        if(receiver instanceof BaseCover){
-            //remove cover view to cover strategy container.
-            mCoverStrategy.removeCover((BaseCover) receiver);
-        }
     }
 
     //receiver event listener, a bridge for some receivers communication.
@@ -260,13 +271,16 @@ public class SuperContainer extends FrameLayout implements OnTouchGestureListene
     };
 
     public void destroy(){
+        //clear ReceiverGroupChangeListener
+        if(mReceiverGroup!=null){
+            mReceiverGroup.removeOnReceiverGroupChangeListener(mInternalReceiverGroupChangeListener);
+        }
+        //destroy producer group
         mProducerGroup.destroy();
         //and remove render view.
         removeRender();
         //and remove all covers
         removeAllCovers();
-        //last remove all receivers from ReceiverGroup.
-        clearReceiverGroup();
     }
 
     private void removeRender(){
@@ -274,13 +288,9 @@ public class SuperContainer extends FrameLayout implements OnTouchGestureListene
             mRenderContainer.removeAllViews();
     }
 
-    private void clearReceiverGroup(){
-        if(mReceiverGroup!=null)
-            mReceiverGroup.clearReceivers();
-    }
-
     protected void removeAllCovers(){
         mCoverStrategy.removeAllCovers();
+        PLog.d(TAG,"detach all covers");
     }
 
     //----------------------------------dispatch gesture touch event---------------------------------

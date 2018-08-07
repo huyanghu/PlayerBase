@@ -1,4 +1,4 @@
-![image](https://github.com/jiajunhui/PlayerBase/raw/master/screenshot/playerbase_top_slogen.jpg)
+![image](https://github.com/jiajunhui/PlayerBase/raw/master/screenshot/playerbase_top_slogen.png)
 <br><br><br>
 **博文地址** ：[Android播放器基础封装库PlayerBase](https://juejin.im/post/5b0d4e6bf265da090f7376d2)
 
@@ -42,7 +42,7 @@ demo示例集成了播放控制组件**ControllerCover**、加载中组件**Load
 <br>
 <img src="https://github.com/jiajunhui/PlayerBase/raw/master/screenshot/qrcode.png" width="180" height="180">
 
-# QQ交流群
+# QQ交流群（600201778）
 <img src="https://github.com/jiajunhui/PlayerBase/raw/master/screenshot/qrcode_qq_group.jpg" width="270" height="370">
 
 
@@ -80,7 +80,7 @@ demo示例集成了播放控制组件**ControllerCover**、加载中组件**Load
 
 ```gradle
 dependencies {
-  compile 'com.kk.taurus.playerbase:playerbase:3.2.7.5'
+  compile 'com.kk.taurus.playerbase:playerbase:3.3.0.3'
 }
 ```
 

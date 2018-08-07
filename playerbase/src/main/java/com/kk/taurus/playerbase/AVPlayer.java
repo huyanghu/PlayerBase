@@ -28,6 +28,7 @@ import com.kk.taurus.playerbase.log.PLog;
 import com.kk.taurus.playerbase.player.BaseInternalPlayer;
 import com.kk.taurus.playerbase.event.BundlePool;
 import com.kk.taurus.playerbase.event.EventKey;
+import com.kk.taurus.playerbase.player.OnBufferingListener;
 import com.kk.taurus.playerbase.provider.IDataProvider;
 import com.kk.taurus.playerbase.player.IPlayer;
 import com.kk.taurus.playerbase.event.OnErrorEventListener;
@@ -52,6 +53,7 @@ public final class AVPlayer implements IPlayer{
 
     private OnPlayerEventListener mOnPlayerEventListener;
     private OnErrorEventListener mOnErrorEventListener;
+    private OnBufferingListener mOnBufferingListener;
 
     private IDataProvider.OnProviderListener mOnProviderListener;
 
@@ -90,11 +92,13 @@ public final class AVPlayer implements IPlayer{
                     "init decoder instance failure, please check your configuration" +
                             ", maybe your config classpath not found.");
         DecoderPlan plan = PlayerConfig.getPlan(mDecoderPlanId);
-        PLog.d(TAG,"=============================");
-        PLog.d(TAG,"DecoderPlanInfo : planId      = " + plan.getIdNumber());
-        PLog.d(TAG,"DecoderPlanInfo : classPath   = " + plan.getClassPath());
-        PLog.d(TAG,"DecoderPlanInfo : desc        = " + plan.getDesc());
-        PLog.d(TAG,"=============================");
+        if(plan!=null){
+            PLog.d(TAG,"=============================");
+            PLog.d(TAG,"DecoderPlanInfo : planId      = " + plan.getIdNumber());
+            PLog.d(TAG,"DecoderPlanInfo : classPath   = " + plan.getClassPath());
+            PLog.d(TAG,"DecoderPlanInfo : desc        = " + plan.getDesc());
+            PLog.d(TAG,"=============================");
+        }
     }
 
     /**
@@ -151,6 +155,7 @@ public final class AVPlayer implements IPlayer{
         if(mInternalPlayer!=null){
             mInternalPlayer.setOnPlayerEventListener(mInternalPlayerEventListener);
             mInternalPlayer.setOnErrorEventListener(mInternalErrorEventListener);
+            mInternalPlayer.setOnBufferingListener(mInternalBufferingListener);
         }
     }
 
@@ -160,6 +165,7 @@ public final class AVPlayer implements IPlayer{
         if(mInternalPlayer!=null){
             mInternalPlayer.setOnPlayerEventListener(null);
             mInternalPlayer.setOnErrorEventListener(null);
+            mInternalPlayer.setOnBufferingListener(null);
         }
     }
 
@@ -169,12 +175,14 @@ public final class AVPlayer implements IPlayer{
         public void onCounter() {
             int curr = getCurrentPosition();
             int duration = getDuration();
+            int bufferPercentage = getBufferPercentage();
             //check valid data.
             if(duration <= 0 || curr < 0)
                 return;
             Bundle bundle = BundlePool.obtain();
             bundle.putInt(EventKey.INT_ARG1, curr);
             bundle.putInt(EventKey.INT_ARG2, duration);
+            bundle.putInt(EventKey.INT_ARG3, bufferPercentage);
             callBackPlayEventListener(
                     OnPlayerEventListener.PLAYER_EVENT_ON_TIMER_UPDATE, bundle);
         }
@@ -198,6 +206,15 @@ public final class AVPlayer implements IPlayer{
         }
     };
 
+    private OnBufferingListener mInternalBufferingListener =
+            new OnBufferingListener() {
+        @Override
+        public void onBufferingUpdate(int bufferPercentage, Bundle extra) {
+            if(mOnBufferingListener!=null)
+                mOnBufferingListener.onBufferingUpdate(bufferPercentage, extra);
+        }
+    };
+
     //must last callback event listener , because bundle will be recycle after callback.
     private void callBackPlayEventListener(int eventCode, Bundle bundle) {
         if(mOnPlayerEventListener!=null)
@@ -218,6 +235,11 @@ public final class AVPlayer implements IPlayer{
     @Override
     public void setOnErrorEventListener(OnErrorEventListener onErrorEventListener) {
         this.mOnErrorEventListener = onErrorEventListener;
+    }
+
+    @Override
+    public void setOnBufferingListener(OnBufferingListener onBufferingListener) {
+        this.mOnBufferingListener = onBufferingListener;
     }
 
     public void setOnProviderListener(IDataProvider.OnProviderListener onProviderListener) {
@@ -255,13 +277,14 @@ public final class AVPlayer implements IPlayer{
                 //on data provider load data success,need set data to decoder player.
                 case IDataProvider.PROVIDER_CODE_SUCCESS_MEDIA_DATA:
                     if(bundle!=null){
-                        DataSource data =
-                                (DataSource) bundle.getSerializable(EventKey.SERIALIZABLE_DATA);
-                        PLog.d(TAG,"onProviderDataSuccessMediaData : DataSource = " + data);
-                        if(data!=null){
-                            interPlayerSetDataSource(data);
-                            internalPlayerStart(data.getStartPos());
+                        Object obj = bundle.getSerializable(EventKey.SERIALIZABLE_DATA);
+                        if(obj==null || !(obj instanceof DataSource)){
+                            throw new RuntimeException("provider media success SERIALIZABLE_DATA must type of DataSource!");
                         }
+                        DataSource data = (DataSource) obj;
+                        PLog.d(TAG,"onProviderDataSuccessMediaData : DataSource = " + data);
+                        interPlayerSetDataSource(data);
+                        internalPlayerStart(data.getStartPos());
                         //success video data call back.
                         callBackPlayEventListener(
                                 OnPlayerEventListener.PLAYER_EVENT_ON_PROVIDER_DATA_SUCCESS, bundle);
@@ -281,11 +304,15 @@ public final class AVPlayer implements IPlayer{
             if(mOnProviderListener!=null)
                 mOnProviderListener.onProviderError(code, bundle);
             //need recreate a new bundle, because a bundle will be recycle after call back.
-            Bundle errorBundle = new Bundle(bundle);
+            Bundle errorBundle;
+            if(bundle!=null){
+                errorBundle = new Bundle(bundle);
+            }else{
+                errorBundle = new Bundle();
+            }
             errorBundle.putInt(EventKey.INT_DATA,code);
             //call back player event
-            callBackPlayEventListener(
-                    OnPlayerEventListener.PLAYER_EVENT_ON_PROVIDER_DATA_ERROR, bundle);
+            callBackPlayEventListener(code, bundle);
             //call back error event
             callBackErrorEventListener(
                     OnErrorEventListener.ERROR_EVENT_DATA_PROVIDER_ERROR,errorBundle);
@@ -424,6 +451,13 @@ public final class AVPlayer implements IPlayer{
     public int getState() {
         if(isPlayerAvailable())
             return mInternalPlayer.getState();
+        return 0;
+    }
+
+    @Override
+    public int getBufferPercentage() {
+        if(isPlayerAvailable())
+            return mInternalPlayer.getBufferPercentage();
         return 0;
     }
 

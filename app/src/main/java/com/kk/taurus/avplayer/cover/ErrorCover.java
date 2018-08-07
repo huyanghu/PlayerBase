@@ -13,8 +13,6 @@ import com.kk.taurus.playerbase.event.BundlePool;
 import com.kk.taurus.playerbase.event.EventKey;
 import com.kk.taurus.playerbase.event.OnPlayerEventListener;
 import com.kk.taurus.playerbase.receiver.BaseCover;
-import com.kk.taurus.playerbase.receiver.ICover;
-import com.kk.taurus.playerbase.receiver.IReceiverGroup;
 import com.kk.taurus.playerbase.utils.NetworkUtils;
 
 import butterknife.BindView;
@@ -56,7 +54,6 @@ public class ErrorCover extends BaseCover {
 
         unbinder = ButterKnife.bind(this, getView());
 
-        getGroupValue().registerOnGroupValueUpdateListener(mOnGroupValueUpdateListener);
 
     }
 
@@ -69,7 +66,6 @@ public class ErrorCover extends BaseCover {
     @Override
     public void onReceiverUnBind() {
         super.onReceiverUnBind();
-        getGroupValue().unregisterOnGroupValueUpdateListener(mOnGroupValueUpdateListener);
         unbinder.unbind();
     }
 
@@ -102,28 +98,19 @@ public class ErrorCover extends BaseCover {
         }
     }
 
-    private IReceiverGroup.OnGroupValueUpdateListener mOnGroupValueUpdateListener =
-            new IReceiverGroup.OnGroupValueUpdateListener() {
-        @Override
-        public String[] filterKeys() {
-            return new String[]{
-                    DataInter.Key.KEY_NETWORK_STATE
-            };
-        }
-
-        @Override
-        public void onValueUpdate(String key, Object value) {
-            if(key.equals(DataInter.Key.KEY_NETWORK_STATE)){
-                int networkState = (int) value;
-                if(networkState== PConst.NETWORK_STATE_WIFI && mErrorShow){
-                    Bundle bundle = BundlePool.obtain();
-                    bundle.putInt(EventKey.INT_DATA, mCurrPosition);
-                    requestRetry(bundle);
-                }
-                handleStatusUI(networkState);
+    @Override
+    public void onProducerData(String key, Object data) {
+        super.onProducerData(key, data);
+        if(DataInter.Key.KEY_NETWORK_STATE.equals(key)){
+            int networkState = (int) data;
+            if(networkState== PConst.NETWORK_STATE_WIFI && mErrorShow){
+                Bundle bundle = BundlePool.obtain();
+                bundle.putInt(EventKey.INT_DATA, mCurrPosition);
+                requestRetry(bundle);
             }
+            handleStatusUI(networkState);
         }
-    };
+    }
 
     private void handleStatusUI(int networkState) {
         if(!getGroupValue().getBoolean(DataInter.Key.KEY_NETWORK_RESOURCE))
@@ -172,6 +159,7 @@ public class ErrorCover extends BaseCover {
     public void onPlayerEvent(int eventCode, Bundle bundle) {
         switch (eventCode){
             case OnPlayerEventListener.PLAYER_EVENT_ON_DATA_SOURCE_SET:
+                mCurrPosition = 0;
                 handleStatusUI(NetworkUtils.getNetworkState(getContext()));
                 break;
             case OnPlayerEventListener.PLAYER_EVENT_ON_TIMER_UPDATE:
@@ -202,6 +190,6 @@ public class ErrorCover extends BaseCover {
 
     @Override
     public int getCoverLevel() {
-        return ICover.COVER_LEVEL_MEDIUM;
+        return levelHigh(0);
     }
 }

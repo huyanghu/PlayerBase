@@ -55,6 +55,9 @@ public class MainActivity extends AppCompatActivity implements OnReceiverEventLi
                 PlayerConfig.setDefaultPlanId(App.PLAN_ID_EXO);
                 updateDecoderInfo();
                 break;
+            case R.id.inputUrlPlay:
+                intentTo(InputUrlPlayActivity.class);
+                break;
         }
         return true;
     }
@@ -88,6 +91,10 @@ public class MainActivity extends AppCompatActivity implements OnReceiverEventLi
 
     public void useAVPlayerOnlineVideos(View v){
         intentTo(OnlineVideoListActivity.class);
+    }
+
+    public void shareAnimationVideos(View v){
+        intentTo(ShareAnimationActivityA.class);
     }
 
     private void intentTo(Class<? extends Activity> cls){

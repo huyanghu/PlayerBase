@@ -36,6 +36,8 @@ public abstract class BaseReceiver implements IReceiver, StateGetter {
     private IReceiverGroup mHostGroup;
     private StateGetter mStateGetter;
 
+    private String mKey;
+
     /**
      * If you want to use Activity related functions or features,
      * please pass in the context of Activity.
@@ -137,9 +139,36 @@ public abstract class BaseReceiver implements IReceiver, StateGetter {
         return null;
     }
 
+    /**
+     * private event
+     * @param eventCode
+     * @param bundle
+     *
+     * @return
+     */
     @Override
     public Bundle onPrivateEvent(int eventCode, Bundle bundle) {
         return null;
+    }
+
+    /**
+     * producer event from producers send.
+     * @param eventCode
+     * @param bundle
+     */
+    @Override
+    public void onProducerEvent(int eventCode, Bundle bundle) {
+
+    }
+
+    /**
+     * producer data from producers send
+     * @param key
+     * @param data
+     */
+    @Override
+    public void onProducerData(String key, Object data) {
+
     }
 
     protected final Context getContext(){
@@ -151,4 +180,16 @@ public abstract class BaseReceiver implements IReceiver, StateGetter {
         return this.getClass().getSimpleName();
     }
 
+    void setKey(String key){
+        this.mKey = key;
+    }
+
+    /**
+     * the receiver key you put.
+     * @return
+     */
+    @Override
+    public final String getKey() {
+        return mKey;
+    }
 }

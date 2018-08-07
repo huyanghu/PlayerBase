@@ -27,6 +27,8 @@ import android.view.View;
 import com.kk.taurus.playerbase.log.PLog;
 import com.kk.taurus.playerbase.player.IPlayer;
 
+import java.lang.ref.WeakReference;
+
 /**
  * Created by Taurus on 2017/11/19.
  *
@@ -126,40 +128,90 @@ public class RenderTextureView extends TextureView implements IRender {
 
     @Override
     public void release() {
-        setSurfaceTextureListener(null);
         if(mSurfaceTexture!=null){
             mSurfaceTexture.release();
             mSurfaceTexture = null;
         }
+        if(mSurface!=null){
+            mSurface.release();
+            mSurface = null;
+        }
+        setSurfaceTextureListener(null);
     }
 
-    public SurfaceTexture getOwnSurfaceTexture(){
+    private  Surface mSurface;
+
+    void setSurface(Surface surface){
+        this.mSurface = surface;
+    }
+
+    Surface getSurface() {
+        return mSurface;
+    }
+
+    SurfaceTexture getOwnSurfaceTexture(){
         return mSurfaceTexture;
     }
 
     private static final class InternalRenderHolder implements IRenderHolder{
 
-        private Surface mSurfaceRefer;
-        private RenderTextureView mTextureView;
+        private WeakReference<Surface> mSurfaceRefer;
+        private WeakReference<RenderTextureView> mTextureRefer;
 
         public InternalRenderHolder(RenderTextureView textureView, SurfaceTexture surfaceTexture){
-            this.mTextureView = textureView;
-            mSurfaceRefer = new Surface(surfaceTexture);
+            mTextureRefer = new WeakReference<>(textureView);
+            mSurfaceRefer = new WeakReference<>(new Surface(surfaceTexture));
+        }
+
+        RenderTextureView getTextureView(){
+            if(mTextureRefer!=null){
+                return mTextureRefer.get();
+            }
+            return null;
         }
 
         @Override
         public void bindPlayer(IPlayer player) {
-            if(player!=null && mSurfaceRefer!=null){
-                SurfaceTexture surfaceTexture = mTextureView.getOwnSurfaceTexture();
+            RenderTextureView textureView = getTextureView();
+            if(player!=null && mSurfaceRefer!=null && textureView!=null){
+                SurfaceTexture surfaceTexture = textureView.getOwnSurfaceTexture();
+                SurfaceTexture useTexture = textureView.getSurfaceTexture();
+                boolean isReleased = false;
+                //check the SurfaceTexture is released is Android O.
+                if(surfaceTexture!=null && Build.VERSION.SDK_INT>=Build.VERSION_CODES.O){
+                    isReleased = surfaceTexture.isReleased();
+                }
+                boolean available = surfaceTexture!=null && !isReleased;
                 //When the user sets the takeover flag and SurfaceTexture is available.
-                if(mTextureView.isTakeOverSurfaceTexture()
-                        && surfaceTexture!=null
+                if(textureView.isTakeOverSurfaceTexture()
+                        && available
                         && Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN){
-                    PLog.d("RenderTextureView","****setSurfaceTexture****");
-                    mTextureView.setSurfaceTexture(surfaceTexture);
+                    //if SurfaceTexture not set or current is null, need set it.
+                    if(!surfaceTexture.equals(useTexture)){
+                        textureView.setSurfaceTexture(surfaceTexture);
+                        PLog.d("RenderTextureView","****setSurfaceTexture****");
+                    }else{
+                        Surface surface = textureView.getSurface();
+                        //release current Surface if not null.
+                        if(surface!=null){
+                            surface.release();
+                        }
+                        //create Surface use update SurfaceTexture
+                        Surface newSurface = new Surface(surfaceTexture);
+                        //set it for player
+                        player.setSurface(newSurface);
+                        //record the new Surface
+                        textureView.setSurface(newSurface);
+                        PLog.d("RenderTextureView","****bindSurface****");
+                    }
                 }else{
-                    PLog.d("RenderTextureView","****bindPlayer****");
-                    player.setSurface(mSurfaceRefer);
+                    Surface surface = mSurfaceRefer.get();
+                    if(surface!=null){
+                        player.setSurface(surface);
+                        //record the Surface
+                        textureView.setSurface(surface);
+                        PLog.d("RenderTextureView","****bindSurface****");
+                    }
                 }
             }
         }

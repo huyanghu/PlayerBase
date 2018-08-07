@@ -14,6 +14,7 @@ import com.kk.taurus.playerbase.event.OnPlayerEventListener;
 import com.kk.taurus.playerbase.log.PLog;
 import com.kk.taurus.playerbase.player.IPlayer;
 import com.kk.taurus.playerbase.provider.IDataProvider;
+import com.kk.taurus.playerbase.receiver.IReceiverGroup;
 import com.kk.taurus.playerbase.receiver.OnReceiverEventListener;
 import com.kk.taurus.playerbase.receiver.ReceiverGroup;
 import com.kk.taurus.playerbase.assist.RelationAssist;
@@ -151,7 +152,7 @@ public class AssistPlayer {
         mRelationAssist.setReceiverGroup(receiverGroup);
     }
 
-    public ReceiverGroup getReceiverGroup(){
+    public IReceiverGroup getReceiverGroup(){
         return mRelationAssist.getReceiverGroup();
     }
 
@@ -164,16 +165,19 @@ public class AssistPlayer {
             this.mDataSource = dataSource;
         }
         attachListener();
-        mRelationAssist.attachContainer(userContainer);
+        IReceiverGroup receiverGroup = getReceiverGroup();
+        if(receiverGroup!=null && dataSource!=null){
+            receiverGroup.getGroupValue().putBoolean(DataInter.Key.KEY_COMPLETE_SHOW, false);
+        }
+        mRelationAssist.attachContainer(userContainer, dataSource==null);
         if(dataSource!=null)
             mRelationAssist.setDataSource(dataSource);
-        ReceiverGroup receiverGroup = getReceiverGroup();
         if(receiverGroup!=null
                 && receiverGroup.getGroupValue().getBoolean(DataInter.Key.KEY_ERROR_SHOW)){
             return;
         }
         if(dataSource!=null)
-            mRelationAssist.play();
+            mRelationAssist.play(true);
     }
 
     public void setDataProvider(IDataProvider dataProvider){
@@ -187,6 +191,7 @@ public class AssistPlayer {
                 && state!= IPlayer.STATE_ERROR
                 && state!= IPlayer.STATE_IDLE
                 && state!= IPlayer.STATE_INITIALIZED
+                && state!= IPlayer.STATE_PLAYBACK_COMPLETE
                 && state!= IPlayer.STATE_STOPPED;
     }
 

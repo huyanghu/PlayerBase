@@ -345,17 +345,18 @@ public class IjkPlayer extends BaseInternalPlayer {
             PLog.d(TAG,"onPrepared...");
             updateStatus(STATE_PREPARED);
 
-            submitPlayerEvent(OnPlayerEventListener.PLAYER_EVENT_ON_PREPARED,null);
-
-            // Get the capabilities of the player for this stream
-            // REMOVED: Metadata
-
             mVideoWidth = mp.getVideoWidth();
             mVideoHeight = mp.getVideoHeight();
 
+            Bundle bundle = BundlePool.obtain();
+            bundle.putInt(EventKey.INT_ARG1, mVideoWidth);
+            bundle.putInt(EventKey.INT_ARG2, mVideoHeight);
+
+            submitPlayerEvent(OnPlayerEventListener.PLAYER_EVENT_ON_PREPARED,bundle);
+
             int seekToPosition = startSeekPos;  // mSeekWhenPrepared may be changed after seekTo() call
             if (seekToPosition != 0) {
-                seekTo(seekToPosition);
+                mMediaPlayer.seekTo(seekToPosition);
                 startSeekPos = 0;
             }
 
@@ -499,9 +500,7 @@ public class IjkPlayer extends BaseInternalPlayer {
     private IMediaPlayer.OnBufferingUpdateListener mBufferingUpdateListener =
             new IMediaPlayer.OnBufferingUpdateListener() {
                 public void onBufferingUpdate(IMediaPlayer mp, int percent) {
-                    Bundle bundle = BundlePool.obtain();
-                    bundle.putInt(EventKey.INT_DATA,percent);
-                    submitPlayerEvent(OnPlayerEventListener.PLAYER_EVENT_ON_BUFFERING_UPDATE, bundle);
+                    submitBufferingUpdate(percent, null);
                 }
             };
 

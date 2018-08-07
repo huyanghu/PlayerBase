@@ -10,13 +10,13 @@ import android.widget.RelativeLayout;
 
 import com.kk.taurus.avplayer.R;
 import com.kk.taurus.avplayer.bean.VideoBean;
+import com.kk.taurus.avplayer.cover.GestureCover;
 import com.kk.taurus.avplayer.play.AssistPlayer;
 import com.kk.taurus.avplayer.play.DataInter;
-import com.kk.taurus.avplayer.play.ReceiverGroupManager;
 import com.kk.taurus.avplayer.utils.OrientationHelper;
 import com.kk.taurus.playerbase.entity.DataSource;
+import com.kk.taurus.playerbase.receiver.IReceiverGroup;
 import com.kk.taurus.playerbase.receiver.OnReceiverEventListener;
-import com.kk.taurus.playerbase.receiver.ReceiverGroup;
 
 /**
  * Created by Taurus on 2018/4/18.
@@ -29,9 +29,10 @@ public class DetailPageActivity extends AppCompatActivity implements OnReceiverE
     private RelativeLayout mLayoutContainer;
 
     private boolean isLandscape;
-    private ReceiverGroup mReceiverGroup;
+    private IReceiverGroup mReceiverGroup;
 
     private OrientationHelper mOrientationHelper;
+    private boolean isOnBackPress;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -51,9 +52,9 @@ public class DetailPageActivity extends AppCompatActivity implements OnReceiverE
 
         AssistPlayer.get().addOnReceiverEventListener(this);
 
-        mReceiverGroup = ReceiverGroupManager.get().getReceiverGroup(this);
+        mReceiverGroup = AssistPlayer.get().getReceiverGroup();
+        mReceiverGroup.addReceiver(DataInter.ReceiverKey.KEY_GESTURE_COVER, new GestureCover(this));
         mReceiverGroup.getGroupValue().putBoolean(DataInter.Key.KEY_CONTROLLER_TOP_ENABLE, true);
-        AssistPlayer.get().setReceiverGroup(mReceiverGroup);
 
         DataSource intentDataSource = new DataSource(item.getPath());
         intentDataSource.setTitle(item.getDisplayName());
@@ -86,7 +87,8 @@ public class DetailPageActivity extends AppCompatActivity implements OnReceiverE
     @Override
     protected void onPause() {
         super.onPause();
-        AssistPlayer.get().pause();
+        if(!isOnBackPress)
+            AssistPlayer.get().pause();
     }
 
     @Override
@@ -114,6 +116,7 @@ public class DetailPageActivity extends AppCompatActivity implements OnReceiverE
             mOrientationHelper.toggleScreen();
             return;
         }
+        isOnBackPress = true;
         super.onBackPressed();
     }
 

@@ -71,6 +71,9 @@ public interface IRender {
 
     View getRenderView();
 
+    /**
+     * release render,the render will become unavailable
+     */
     void release();
 
     /**

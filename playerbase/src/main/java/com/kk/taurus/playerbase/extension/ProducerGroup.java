@@ -16,9 +16,8 @@
 
 package com.kk.taurus.playerbase.extension;
 
-import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  *
@@ -29,44 +28,39 @@ public final class ProducerGroup implements IProducerGroup {
 
     private ReceiverEventSender mEventSender;
 
-    private List<EventProducer> mEventProducers;
+    private List<BaseEventProducer> mEventProducers;
 
     public ProducerGroup(ReceiverEventSender eventSender){
         this.mEventSender = eventSender;
-        mEventProducers = new ArrayList<>();
+        mEventProducers = new CopyOnWriteArrayList<>();
     }
 
     @Override
-    public void addEventProducer(EventProducer eventProducer) {
-        if(eventProducer==null)
-            return;
-        eventProducer.attachSender(mEventSender);
+    public void addEventProducer(BaseEventProducer eventProducer) {
         if(!mEventProducers.contains(eventProducer)){
+            eventProducer.attachSender(mEventSender);
             mEventProducers.add(eventProducer);
             eventProducer.onAdded();
         }
     }
 
     @Override
-    public boolean removeEventProducer(EventProducer eventProducer) {
+    public boolean removeEventProducer(BaseEventProducer eventProducer) {
         boolean remove = mEventProducers.remove(eventProducer);
         if(eventProducer!=null){
-            eventProducer.attachSender(null);
             eventProducer.onRemoved();
+            eventProducer.attachSender(null);
         }
         return remove;
     }
 
     @Override
     public void destroy() {
-        Iterator<EventProducer> iterator = mEventProducers.iterator();
-        while (iterator.hasNext()){
-            EventProducer next = iterator.next();
-            next.attachSender(null);
-            next.onRemoved();
-            next.destroy();
-            //remove it from list.
-            iterator.remove();
+        for(BaseEventProducer eventProducer : mEventProducers){
+            eventProducer.onRemoved();
+            eventProducer.destroy();
+            eventProducer.attachSender(null);
         }
+        mEventProducers.clear();
     }
 }

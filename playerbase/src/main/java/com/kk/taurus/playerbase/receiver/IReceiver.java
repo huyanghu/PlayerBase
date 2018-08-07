@@ -82,9 +82,29 @@ public interface IReceiver {
     Bundle onPrivateEvent(int eventCode, Bundle bundle);
 
     /**
+     * producer event call back this method
+     * @param eventCode
+     * @param bundle
+     */
+    void onProducerEvent(int eventCode, Bundle bundle);
+
+    /**
+     * producer data call back this method
+     * @param key
+     * @param data
+     */
+    void onProducerData(String key, Object data);
+
+    /**
      * on receiver destroy.
      * when receiver removed, this method will be callback.
      */
     void onReceiverUnBind();
+
+    /**
+     * get the receiver key, when add receiver the key set it.
+     * @return
+     */
+    String getKey();
 
 }

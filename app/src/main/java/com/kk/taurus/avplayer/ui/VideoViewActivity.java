@@ -5,6 +5,7 @@ import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.graphics.Color;
 import android.media.audiofx.Visualizer;
+import android.os.Build;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
 import android.support.v7.app.AppCompatActivity;
@@ -62,6 +63,8 @@ public class VideoViewActivity extends AppCompatActivity implements OnPlayerEven
     private boolean isLandscape;
 
     private long mDataSourceId;
+
+    private boolean userPause;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -160,15 +163,27 @@ public class VideoViewActivity extends AppCompatActivity implements OnPlayerEven
     }
 
     public void onStyleSetRoundRect(View view){
-        mVideoView.setRoundRectShape(PUtil.dip2px(this,25));
+        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP){
+            mVideoView.setRoundRectShape(PUtil.dip2px(this,25));
+        }else{
+            Toast.makeText(this, "not support", Toast.LENGTH_SHORT).show();
+        }
     }
 
     public void onStyleSetOvalRect(View view){
-        mVideoView.setOvalRectShape();
+        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP){
+            mVideoView.setOvalRectShape();
+        }else{
+            Toast.makeText(this, "not support", Toast.LENGTH_SHORT).show();
+        }
     }
 
     public void onShapeStyleReset(View view){
-        mVideoView.clearShapeStyle();
+        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP){
+            mVideoView.clearShapeStyle();
+        }else{
+            Toast.makeText(this, "not support", Toast.LENGTH_SHORT).show();
+        }
     }
 
     public void onAspect16_9(View view){
@@ -254,13 +269,22 @@ public class VideoViewActivity extends AppCompatActivity implements OnPlayerEven
     @Override
     protected void onPause() {
         super.onPause();
-        mVideoView.pause();
+        if(mVideoView.isInPlaybackState()){
+            mVideoView.pause();
+        }else{
+            mVideoView.stop();
+        }
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        mVideoView.resume();
+        if(mVideoView.isInPlaybackState()){
+            if(!userPause)
+                mVideoView.resume();
+        }else{
+            mVideoView.rePlay(0);
+        }
     }
 
     @Override
@@ -297,6 +321,9 @@ public class VideoViewActivity extends AppCompatActivity implements OnPlayerEven
         public void onAssistHandle(BaseVideoView assist, int eventCode, Bundle bundle) {
             super.onAssistHandle(assist, eventCode, bundle);
             switch (eventCode){
+                case DataInter.Event.CODE_REQUEST_PAUSE:
+                    userPause = true;
+                    break;
                 case DataInter.Event.EVENT_CODE_REQUEST_BACK:
                     if(isLandscape){
                         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
@@ -335,6 +362,9 @@ public class VideoViewActivity extends AppCompatActivity implements OnPlayerEven
                 break;
             case OnPlayerEventListener.PLAYER_EVENT_ON_PLAY_COMPLETE:
 
+                break;
+            case OnPlayerEventListener.PLAYER_EVENT_ON_RESUME:
+                userPause = false;
                 break;
         }
     }

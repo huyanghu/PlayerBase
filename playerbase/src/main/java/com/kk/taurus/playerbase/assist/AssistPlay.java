@@ -22,8 +22,8 @@ import com.kk.taurus.playerbase.entity.DataSource;
 import com.kk.taurus.playerbase.event.OnErrorEventListener;
 import com.kk.taurus.playerbase.event.OnPlayerEventListener;
 import com.kk.taurus.playerbase.provider.IDataProvider;
+import com.kk.taurus.playerbase.receiver.IReceiverGroup;
 import com.kk.taurus.playerbase.receiver.OnReceiverEventListener;
-import com.kk.taurus.playerbase.receiver.ReceiverGroup;
 
 /**
  *
@@ -45,19 +45,21 @@ public interface AssistPlay {
     void setVolume(float left, float right);
     void setSpeed(float speed);
 
-    void setReceiverGroup(ReceiverGroup receiverGroup);
+    void setReceiverGroup(IReceiverGroup receiverGroup);
 
     void attachContainer(ViewGroup userContainer);
 
     void setDataSource(DataSource dataSource);
 
     void play();
+    void play(boolean updateRender);
 
     boolean isInPlaybackState();
     boolean isPlaying();
     int getCurrentPosition();
     int getDuration();
     int getAudioSessionId();
+    int getBufferPercentage();
     int getState();
 
     void rePlay(int msc);
